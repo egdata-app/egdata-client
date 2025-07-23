@@ -1,0 +1,262 @@
+import { createCollection, localOnlyCollectionOptions } from '@tanstack/db';
+import { useLiveQuery } from '@tanstack/react-db';
+import { eq } from '@tanstack/db';
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+import type { Game, GameInfo } from '../hooks/use-scan-games';
+import type { Settings } from '../hooks/use-settings';
+
+
+// Game Collection
+export const gameCollection = createCollection(
+  localOnlyCollectionOptions({
+    id: 'games',
+    getKey: (item: any) => item.id,
+    onUpdate: async ({ transaction }: any) => {
+      // Handle optimistic updates to backend
+      const { original, changes } = transaction.mutations[0];
+      // Since games are read-only from backend, we don't need to sync back
+      console.log('Game updated:', { original, changes });
+    },
+    onInsert: async ({ transaction }: any) => {
+      // Games are managed by backend, no insert needed
+      console.log('Game inserted:', transaction.mutations[0]);
+    },
+    onDelete: async ({ transaction }: any) => {
+      // Games are managed by backend, no delete needed
+      console.log('Game deleted:', transaction.mutations[0]);
+    },
+  })
+);
+
+// Settings Collection
+export const settingsCollection = createCollection(
+  localOnlyCollectionOptions({
+    id: 'settings',
+    getKey: (item: any) => item.id,
+    onUpdate: async ({ transaction }: any) => {
+      const { modified } = transaction.mutations[0];
+      // Sync complete settings object to backend (excluding the 'id' field)
+      const { _id, ...settingsToSend } = modified;
+      await invoke('set_settings', { newSettings: settingsToSend });
+    },
+  })
+);
+
+// Logs Collection for real-time log streaming
+export const logsCollection = createCollection(
+  localOnlyCollectionOptions({
+    id: 'logs',
+    getKey: (item: any) => item.id,
+    onInsert: async ({ transaction }: any) => {
+      // Logs are append-only, no backend sync needed
+      console.log('Log added:', transaction.mutations[0]);
+    },
+  })
+);
+
+// Upload Status Collection
+export const uploadStatusCollection = createCollection(
+  localOnlyCollectionOptions({
+    id: 'uploadStatus',
+    getKey: (item: any) => item.id,
+    onUpdate: async ({ transaction }: any) => {
+      // Upload status is managed by backend
+      console.log('Upload status updated:', transaction.mutations[0]);
+    },
+  })
+);
+
+// Uploaded Manifests Collection
+export const uploadedManifestsCollection = createCollection(
+  localOnlyCollectionOptions({
+    id: 'uploadedManifests',
+    getKey: (item: any) => item.id,
+    onInsert: async ({ transaction }: any) => {
+      const manifest = transaction.mutations[0].modified;
+      // Update localStorage for backward compatibility
+      try {
+        const stored = localStorage.getItem('uploaded-manifests');
+        const uploadedHashes = stored ? JSON.parse(stored) : [];
+        if (!uploadedHashes.includes(manifest.hash)) {
+          uploadedHashes.push(manifest.hash);
+          localStorage.setItem('uploaded-manifests', JSON.stringify(uploadedHashes));
+        }
+      } catch (error) {
+        console.error('Failed to update localStorage:', error);
+      }
+    },
+    onDelete: async ({ transaction }: any) => {
+      const manifest = transaction.mutations[0].original;
+      // Update localStorage for backward compatibility
+      try {
+        const stored = localStorage.getItem('uploaded-manifests');
+        const uploadedHashes = stored ? JSON.parse(stored) : [];
+        const filteredHashes = uploadedHashes.filter((hash: string) => hash !== manifest.hash);
+        localStorage.setItem('uploaded-manifests', JSON.stringify(filteredHashes));
+      } catch (error) {
+        console.error('Failed to update localStorage:', error);
+      }
+    },
+  })
+);
+
+// Initialize collections with data from backend
+export async function initializeStore() {
+  try {
+    // Load initial games data
+    const gameInfos = await invoke<GameInfo[]>('get_installed_games');
+    const games = gameInfos.map(convertGameInfo);
+
+    // Populate games collection
+    games.forEach(game => {
+      gameCollection.insert(game as any);
+    });
+
+    // Load initial settings
+    const settings = await invoke<Settings>('get_settings');
+    settingsCollection.insert({ id: 'current', ...settings } as any);
+
+    // Initialize uploaded manifests from localStorage for backward compatibility
+    try {
+      const stored = localStorage.getItem('uploaded-manifests');
+      if (stored) {
+        const uploadedHashes = JSON.parse(stored);
+        uploadedHashes.forEach((hash: string) => {
+          uploadedManifestsCollection.insert({
+            id: hash,
+            hash,
+            uploadedAt: new Date().toISOString(),
+            status: 'uploaded'
+          } as any);
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load uploaded manifests from localStorage:', error);
+    }
+
+    // Set up real-time listeners
+    setupRealtimeListeners();
+
+  } catch (error) {
+    console.error('Failed to initialize store:', error);
+  }
+}
+
+// Set up real-time event listeners
+function setupRealtimeListeners() {
+  // Listen for games updates from backend
+  listen('games-updated', async () => {
+    try {
+      const gameInfos = await invoke<GameInfo[]>('get_installed_games');
+      const games = gameInfos.map(convertGameInfo);
+
+      // Update games collection by inserting new games
+      games.forEach(game => {
+        gameCollection.insert(game as any);
+      });
+    } catch (error) {
+      console.error('Failed to update games from backend:', error);
+    }
+  });
+
+  // Listen for log events
+  listen('log-event', (event: any) => {
+    const logEntry = {
+      id: Date.now().toString(),
+      timestamp: new Date().toISOString(),
+      ...event.payload
+    };
+    logsCollection.insert(logEntry);
+  });
+
+  // Listen for upload status updates
+  listen('upload-status', (event: any) => {
+    uploadStatusCollection.update('current', (draft: any) => {
+      Object.assign(draft, event.payload);
+    });
+  });
+}
+
+// Helper function to convert GameInfo to Game (same as in use-scan-games.ts)
+function convertGameInfo(gameInfo: GameInfo): Game {
+  const formatFileSize = (bytes: number): string => {
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    if (bytes === 0) return '0 Bytes';
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+  };
+
+  const metadata = gameInfo.metadata;
+  let coverImage = `https://img.heroui.chat/image/game?w=400&h=600&seed=${gameInfo.app_name}`;
+  let icon = `https://img.heroui.chat/image/game?w=100&h=100&seed=${gameInfo.app_name}`;
+
+  if (metadata?.keyImages) {
+    const tallCover = metadata.keyImages.find(img => img.type === 'DieselGameBoxTall');
+    const wideCover = metadata.keyImages.find(img => img.type === 'DieselGameBox');
+    if (tallCover) {
+      coverImage = tallCover.url;
+      icon = tallCover.url;
+    } else if (wideCover) {
+      coverImage = wideCover.url;
+      icon = wideCover.url;
+    }
+  }
+
+  return {
+    id: gameInfo.catalog_item_id,
+    name: metadata?.title || gameInfo.display_name,
+    icon,
+    coverImage,
+    size: formatFileSize(gameInfo.install_size),
+    installPath: gameInfo.install_location,
+    version: gameInfo.version,
+    lastUpdated: new Date().toISOString().split('T')[0],
+    installation_guid: gameInfo.installation_guid,
+    manifest_hash: gameInfo.manifest_hash,
+  };
+}
+
+// Export hooks for using collections in components
+export function useGames() {
+  return useLiveQuery((q: any) => q.from({ game: gameCollection }));
+}
+
+export function useSettings() {
+  return useLiveQuery((q: any) =>
+    q.from({ settings: settingsCollection })
+      .where(({ settings }: any) => eq(settings.id, 'current'))
+  );
+}
+
+export function useLogs() {
+  return useLiveQuery((q: any) =>
+    q.from({ log: logsCollection })
+      .orderBy(({ log }: any) => log.timestamp, 'desc')
+  );
+}
+
+export function useUploadStatus() {
+  return useLiveQuery((q: any) =>
+    q.from({ status: uploadStatusCollection })
+      .where(({ status }: any) => eq(status.id, 'current'))
+  );
+}
+
+export function useUploadedManifests() {
+  return useLiveQuery((q: any) => q.from({ manifest: uploadedManifestsCollection }));
+}
+
+export function useIsManifestUploaded(manifestHash: string) {
+  return useLiveQuery((q: any) =>
+    q.from({ manifest: uploadedManifestsCollection })
+      .where(({ manifest }: any) => eq(manifest.hash, manifestHash))
+  );
+}
+
+// Helper function to clear all logs
+export function clearLogs() {
+  // Since we can't use hooks outside components, we'll use a different approach
+  // This will be handled in the component that needs to clear logs
+  console.log('Clear logs requested - should be handled in component');
+}
