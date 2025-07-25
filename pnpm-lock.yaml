@@ -39,7 +39,7 @@ importers:
         specifier: ^2
         version: 2.7.0
       '@tauri-apps/plugin-opener':
-        specifier: ^2
+        specifier: ~2
         version: 2.4.0
       framer-motion:
         specifier: ^12.23.6

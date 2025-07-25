@@ -21,12 +21,7 @@ export async function minimizeWindow(): Promise<void> {
   return invoke('minimize_window');
 }
 
-/**
- * Clear all uploaded manifest records
- */
-export async function clearUploadedManifests(): Promise<void> {
-  return invoke('clear_uploaded_manifests');
-}
+// Removed clearUploadedManifests - API handles duplicates
 
 /**
  * Check if the application is running in Tauri

@@ -1,17 +1,21 @@
 import React from "react";
-import { Badge, Switch, Button, Input, Tooltip } from "@heroui/react";
+import { Badge, Switch, Input } from "@heroui/react";
 import { Icon } from "@iconify/react";
 
 interface GameListHeaderProps {
   gameCount: number;
   showConsole: boolean;
   onToggleConsole: () => void;
+  searchTerm: string;
+  onSearchChange: (value: string) => void;
 }
 
 export const GameListHeader: React.FC<GameListHeaderProps> = ({
   gameCount,
   showConsole,
-  onToggleConsole
+  onToggleConsole,
+  searchTerm,
+  onSearchChange
 }) => {
   return (
     <div className="flex justify-between items-center">
@@ -30,6 +34,8 @@ export const GameListHeader: React.FC<GameListHeaderProps> = ({
           }}
           placeholder="Search games..."
           startContent={<Icon icon="lucide:search" className="text-default-400" width={16} />}
+          value={searchTerm}
+          onValueChange={onSearchChange}
         />
 
         <div className="flex items-center gap-2">
@@ -41,16 +47,6 @@ export const GameListHeader: React.FC<GameListHeaderProps> = ({
             color="primary"
           />
         </div>
-
-        <Tooltip content="Export Games List">
-          <Button
-            variant="flat"
-            size="sm"
-            startContent={<Icon icon="lucide:download" width={16} />}
-          >
-            Export
-          </Button>
-        </Tooltip>
       </div>
     </div>
   );

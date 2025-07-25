@@ -14,23 +14,12 @@ import {
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { useSettings } from "../hooks/use-settings";
-import { minimizeWindow, isTauri, clearUploadedManifests as clearUploadedManifestsBackend } from "../lib/tauri-commands";
-import { clearUploadedManifests as clearUploadedManifestsLocal } from "../hooks/use-upload-manifest";
+import { minimizeWindow, isTauri } from "../lib/tauri-commands";
 
 export const AppHeader: React.FC = () => {
   const { settings, isLoading, updateSettings } = useSettings();
 
-  const handleClearUploadedManifests = async () => {
-    try {
-      // Clear backend data
-      await clearUploadedManifestsBackend();
-      // Clear localStorage data
-      clearUploadedManifestsLocal();
-      // Optionally show a success message or refresh the UI
-    } catch (error) {
-      console.error('Failed to clear uploaded manifests:', error);
-    }
-  };
+  // Removed clear uploaded manifests functionality - API handles duplicates
 
   if (isLoading || !settings) {
     // You can return a spinner, skeleton, or null
@@ -107,14 +96,14 @@ export const AppHeader: React.FC = () => {
               <div className="h-px bg-default-100 my-2" />
 
               <div className="py-1">
-                <div className="text-sm text-default-600 mb-1">Upload Interval (hours)</div>
-                <div className="mb-1 text-xs text-default-400">How often to check for new games (in hours)</div>
+                <div className="text-sm text-default-600 mb-1">Upload Interval (minutes)</div>
+                <div className="mb-1 text-xs text-default-400">How often to check for new games (in minutes)</div>
                 <NumberInput
                   size="sm"
                   value={settings.upload_interval}
                   onValueChange={(value) => updateSettings({ upload_interval: value })}
                   minValue={1}
-                  maxValue={168}
+                  maxValue={10080}
                   step={1}
                   className="w-full"
                 />
@@ -155,22 +144,7 @@ export const AppHeader: React.FC = () => {
                 </CheckboxGroup>
               </div>
 
-              <div className="h-px bg-default-100 my-2" />
-
-              <div className="py-1">
-                <div className="text-sm text-default-600 mb-1">Upload History</div>
-                <div className="mb-2 text-xs text-default-400">Clear uploaded manifest records to re-upload games</div>
-                <Button
-                  size="sm"
-                  color="warning"
-                  variant="flat"
-                  onPress={handleClearUploadedManifests}
-                  className="w-full"
-                  startContent={<Icon icon="lucide:trash-2" width={16} />}
-                >
-                  Clear Upload History
-                </Button>
-              </div>
+              {/* Removed Upload History section - API handles duplicates */}
 
               <div className="h-px bg-default-100 my-2" />
 

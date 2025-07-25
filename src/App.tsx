@@ -14,6 +14,7 @@ import {
   Chip
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
+import { Toaster, toast } from 'sonner';
 import { GameScanner } from "./components/game-scanner";
 import { GameListHeader } from "./components/game-list-header";
 import { LogConsole } from "./components/log-console";
@@ -21,8 +22,7 @@ import { NoGamesFound } from "./components/no-games-found";
 import { AppHeader } from "./components/app-header";
 import { GameDetail } from "./components/game-detail";
 import { useGameLibrary } from './hooks/use-scan-games';
-import { useUploadManifest, isManifestUploaded } from './hooks/use-upload-manifest';
-import { Toaster, toast } from 'sonner';
+import { useUploadManifest } from './hooks/use-upload-manifest';
 
 function maybeParseJson(json: string) {
   try {
@@ -46,6 +46,37 @@ export default function App() {
     clearLogs
   } = useGameLibrary();
   const uploadMutation = useUploadManifest();
+  const [searchTerm, setSearchTerm] = React.useState('');
+
+  // Fuzzy search function
+  const fuzzySearch = (text: string, searchTerm: string): boolean => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    const target = text.toLowerCase();
+    
+    // Direct substring match
+    if (target.includes(search)) return true;
+    
+    // Fuzzy match - check if all characters in search term appear in order
+    let searchIndex = 0;
+    for (let i = 0; i < target.length && searchIndex < search.length; i++) {
+      if (target[i] === search[searchIndex]) {
+        searchIndex++;
+      }
+    }
+    return searchIndex === search.length;
+  };
+
+  // Filter games based on search term
+  const filteredGames = React.useMemo(() => {
+    if (!searchTerm.trim()) return games;
+    
+    return games.filter(game => 
+      fuzzySearch(game.name, searchTerm) ||
+      fuzzySearch(game.id, searchTerm) ||
+      fuzzySearch(game.installPath, searchTerm)
+    );
+  }, [games, searchTerm]);
 
   React.useEffect(() => {
     if (uploadMutation.isSuccess) {
@@ -84,14 +115,16 @@ export default function App() {
 
           <div className="flex-1 overflow-hidden flex flex-col">
             <GameListHeader
-              gameCount={games.length}
+              gameCount={filteredGames.length}
               showConsole={showConsole}
               onToggleConsole={toggleConsole}
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
             />
 
             <div className="flex-1 overflow-hidden mt-2">
               <Card className="h-full flex flex-col">
-                {games.length > 0 ? (
+                {filteredGames.length > 0 ? (
                   <Table
                     removeWrapper
                     aria-label="Installed Epic Games"
@@ -99,7 +132,7 @@ export default function App() {
                     selectedKeys={selectedGame ? [selectedGame.id] : []}
                     onSelectionChange={(keys) => {
                       const selectedId = Array.from(keys)[0]?.toString();
-                      const game = games.find(g => g.id === selectedId);
+                      const game = filteredGames.find(g => g.id === selectedId);
                       if (game) setSelectedGame(game as any);
                     }}
                     className="h-full"
@@ -107,6 +140,7 @@ export default function App() {
                     classNames={{
                       base: "max-h-[520px] overflow-y-scroll",
                       table: "min-h-[420px]",
+                      tr: "h-12",
                     }}
                   >
                     <TableHeader>
@@ -116,7 +150,7 @@ export default function App() {
                       <TableColumn>VERSION</TableColumn>
                       <TableColumn>ACTIONS</TableColumn>
                     </TableHeader>
-                    <TableBody items={games} emptyContent={<NoGamesFound />}>
+                    <TableBody items={filteredGames} emptyContent={<NoGamesFound />}>
                       {(game: any) => (
                         <TableRow key={game.id}>
                           <TableCell>
@@ -166,15 +200,10 @@ export default function App() {
                                   color="primary"
                                   isLoading={uploadMutation.isPending && uploadMutation.variables?.gameId === game.id}
                                   onClick={() => uploadMutation.mutate({ gameId: game.id, installationGuid: game.installation_guid })}
-                                  disabled={uploadMutation.isPending || isManifestUploaded(game.manifest_hash)}
+                                  disabled={uploadMutation.isPending}
                                 >
                                   <Icon icon="lucide:key" width={16} />
-                                  <span>{isManifestUploaded(game.manifest_hash) ? 'Uploaded' : 'Send'}</span>
-                                </Button>
-                              </Tooltip>
-                              <Tooltip content="Open Folder">
-                                <Button size="sm" variant="light" isIconOnly>
-                                  <Icon icon="lucide:folder-open" width={16} />
+                                  <span>Send</span>
                                 </Button>
                               </Tooltip>
                             </div>

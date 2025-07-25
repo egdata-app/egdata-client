@@ -6,7 +6,7 @@ export interface Settings {
   concurrency?: number;
   upload_speed_limit?: number;
   allowed_environments?: string[];
-  upload_interval?: number; // in hours
+  upload_interval?: number; // in minutes
   scan_interval_minutes?: number; // in minutes
 }
 

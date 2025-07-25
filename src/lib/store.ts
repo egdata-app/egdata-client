@@ -67,39 +67,7 @@ export const uploadStatusCollection = createCollection(
   })
 );
 
-// Uploaded Manifests Collection
-export const uploadedManifestsCollection = createCollection(
-  localOnlyCollectionOptions({
-    id: 'uploadedManifests',
-    getKey: (item: any) => item.id,
-    onInsert: async ({ transaction }: any) => {
-      const manifest = transaction.mutations[0].modified;
-      // Update localStorage for backward compatibility
-      try {
-        const stored = localStorage.getItem('uploaded-manifests');
-        const uploadedHashes = stored ? JSON.parse(stored) : [];
-        if (!uploadedHashes.includes(manifest.hash)) {
-          uploadedHashes.push(manifest.hash);
-          localStorage.setItem('uploaded-manifests', JSON.stringify(uploadedHashes));
-        }
-      } catch (error) {
-        console.error('Failed to update localStorage:', error);
-      }
-    },
-    onDelete: async ({ transaction }: any) => {
-      const manifest = transaction.mutations[0].original;
-      // Update localStorage for backward compatibility
-      try {
-        const stored = localStorage.getItem('uploaded-manifests');
-        const uploadedHashes = stored ? JSON.parse(stored) : [];
-        const filteredHashes = uploadedHashes.filter((hash: string) => hash !== manifest.hash);
-        localStorage.setItem('uploaded-manifests', JSON.stringify(filteredHashes));
-      } catch (error) {
-        console.error('Failed to update localStorage:', error);
-      }
-    },
-  })
-);
+// Removed uploaded manifests collection - API handles duplicates
 
 // Initialize collections with data from backend
 export async function initializeStore() {
@@ -117,23 +85,7 @@ export async function initializeStore() {
     const settings = await invoke<Settings>('get_settings');
     settingsCollection.insert({ id: 'current', ...settings } as any);
 
-    // Initialize uploaded manifests from localStorage for backward compatibility
-    try {
-      const stored = localStorage.getItem('uploaded-manifests');
-      if (stored) {
-        const uploadedHashes = JSON.parse(stored);
-        uploadedHashes.forEach((hash: string) => {
-          uploadedManifestsCollection.insert({
-            id: hash,
-            hash,
-            uploadedAt: new Date().toISOString(),
-            status: 'uploaded'
-          } as any);
-        });
-      }
-    } catch (error) {
-      console.error('Failed to load uploaded manifests from localStorage:', error);
-    }
+    // Removed uploaded manifests initialization - API handles duplicates
 
     // Set up real-time listeners
     setupRealtimeListeners();
@@ -243,16 +195,7 @@ export function useUploadStatus() {
   );
 }
 
-export function useUploadedManifests() {
-  return useLiveQuery((q: any) => q.from({ manifest: uploadedManifestsCollection }));
-}
-
-export function useIsManifestUploaded(manifestHash: string) {
-  return useLiveQuery((q: any) =>
-    q.from({ manifest: uploadedManifestsCollection })
-      .where(({ manifest }: any) => eq(manifest.hash, manifestHash))
-  );
-}
+// Removed uploaded manifests hooks - API handles duplicates
 
 // Helper function to clear all logs
 export function clearLogs() {
