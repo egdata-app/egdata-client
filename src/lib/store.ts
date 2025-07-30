@@ -76,13 +76,10 @@ export async function initializeStore() {
     const gameInfos = await invoke<GameInfo[]>('get_installed_games');
     const games = gameInfos.map(convertGameInfo);
 
-    // Clear any existing games first (in case of re-initialization)
-    // Note: We'll let the collection handle duplicates via upsert behavior
-
-    // Populate games collection with fresh data
-    games.forEach(game => {
+    // Populate games collection with fresh data, assuming upsert behavior
+    for (const game of games) {
       gameCollection.insert(game as any);
-    });
+    }
 
     // Load initial settings
     const settings = await invoke<Settings>('get_settings');
@@ -101,19 +98,15 @@ export async function initializeStore() {
 // Set up real-time event listeners
 function setupRealtimeListeners() {
   // Listen for games updates from backend
-  listen('games-updated', async () => {
+  listen<GameInfo[]>('games-updated', async (event) => {
     try {
-      const gameInfos = await invoke<GameInfo[]>('get_installed_games');
+      const gameInfos = event.payload;
       const games = gameInfos.map(convertGameInfo);
 
-      // Clear existing games first, then insert fresh data
-      // Since we can't easily get all items synchronously, we'll use upsert behavior
-      // The collection will handle duplicates by updating existing items
-      
-      // Insert/update fresh games data
-      games.forEach(game => {
+      // Insert new games, assuming upsert behavior from `insert`
+      for (const game of games) {
         gameCollection.insert(game as any);
-      });
+      }
     } catch (error) {
       console.error('Failed to update games from backend:', error);
     }

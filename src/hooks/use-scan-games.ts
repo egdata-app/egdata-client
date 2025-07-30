@@ -171,20 +171,8 @@ export function useScanGames() {
       setScanProgress(100);
       return result;
     },
-    onSuccess: async (scanResult) => {
-      // Use the scan result directly instead of refetching
-      const convertedGames = scanResult.map(convertGameInfo);
-      
-      // Clear existing games first by deleting all current games
-      games.forEach(game => {
-        gameCollection.delete(game.id);
-      });
-
-      // Insert fresh games data from scan result
-      convertedGames.forEach(game => {
-        gameCollection.insert(game as any);
-      });
-      
+    onSuccess: () => {
+      // The 'games-updated' event will handle the UI update.
       setTimeout(() => setScanProgress(0), 500);
     },
   });
