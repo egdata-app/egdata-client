@@ -171,9 +171,8 @@ export function useScanGames() {
       setScanProgress(100);
       return result;
     },
-    onSuccess: async () => {
-      // Refresh games data in TanStack DB store
-      await refetch();
+    onSuccess: () => {
+      // The 'games-updated' event will handle the UI update.
       setTimeout(() => setScanProgress(0), 500);
     },
   });
