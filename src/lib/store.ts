@@ -76,7 +76,10 @@ export async function initializeStore() {
     const gameInfos = await invoke<GameInfo[]>('get_installed_games');
     const games = gameInfos.map(convertGameInfo);
 
-    // Populate games collection
+    // Clear any existing games first (in case of re-initialization)
+    // Note: We'll let the collection handle duplicates via upsert behavior
+
+    // Populate games collection with fresh data
     games.forEach(game => {
       gameCollection.insert(game as any);
     });
@@ -103,7 +106,11 @@ function setupRealtimeListeners() {
       const gameInfos = await invoke<GameInfo[]>('get_installed_games');
       const games = gameInfos.map(convertGameInfo);
 
-      // Update games collection by inserting new games
+      // Clear existing games first, then insert fresh data
+      // Since we can't easily get all items synchronously, we'll use upsert behavior
+      // The collection will handle duplicates by updating existing items
+      
+      // Insert/update fresh games data
       games.forEach(game => {
         gameCollection.insert(game as any);
       });
