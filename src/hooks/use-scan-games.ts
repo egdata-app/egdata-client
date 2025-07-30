@@ -137,17 +137,19 @@ export function useScanGames() {
       const gameInfos = await invoke<GameInfo[]>('get_installed_games');
       const convertedGames = gameInfos.map(convertGameInfo);
 
-      // Update games collection with fresh data
-      // Clear games by deleting each one (TanStack DB collections don't have clear method)
-      // This would need to be implemented with proper querying and deletion in a component
-      // For now, just insert new games (duplicates will be handled by the collection)
+      // Clear existing games first by deleting all current games
+      games.forEach(game => {
+        gameCollection.delete(game.id);
+      });
+
+      // Insert fresh games data
       convertedGames.forEach(game => {
         gameCollection.insert(game as any);
       });
     } catch (error) {
       console.error('Failed to refetch games:', error);
     }
-  }, []);
+  }, [games]);
 
   // Scan games with progress simulation
   const scanMutation = useMutation({
