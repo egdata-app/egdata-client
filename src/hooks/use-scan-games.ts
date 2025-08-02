@@ -171,13 +171,35 @@ export function useScanGames() {
       setScanProgress(100);
       return result;
     },
-    onSuccess: () => {
-      // The 'games-updated' event will handle the UI update.
+    onSuccess: (gameInfos) => {
+      // Convert and update the games in the store immediately
+      const convertedGames = gameInfos.map(convertGameInfo);
+
+      // Get current game IDs to track which ones to keep
+      const newGameIds = new Set(convertedGames.map(game => game.id));
+
+      // Remove games that are no longer installed
+      games.forEach(game => {
+        if (!newGameIds.has(game.id)) {
+          gameCollection.delete(game.id);
+        }
+      });
+
+      // Insert or update games properly
+      convertedGames.forEach(game => {
+        const existingGame = games.find(g => g.id === game.id);
+        if (existingGame) {
+          // Update existing game
+          gameCollection.update(game.id, () => game as any);
+        } else {
+          // Insert new game
+          gameCollection.insert(game as any);
+        }
+      });
+
       setTimeout(() => setScanProgress(0), 500);
     },
   });
-
-  // games are now provided directly from TanStack DB
 
   return {
     games,
