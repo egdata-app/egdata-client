@@ -84,6 +84,7 @@ pub async fn upload_manifest_internal(game: &GameInfo) -> Result<UploadStatus, S
     } else {
         // Check if the error is about identical content already existing
         if text.contains("A manifest file with identical content already exists") {
+            println!("err: {}", text);
             return Ok(UploadStatus {
                 status: "already_uploaded".to_string(),
                 message: Some("Manifest with identical content already exists".to_string()),

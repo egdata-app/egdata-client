@@ -1,10 +1,10 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { HeroUIProvider } from "@heroui/react";
 import App from "./App";
 import "./App.css"
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { initializeStore } from './lib/store';
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const queryClient = new QueryClient();
 
@@ -14,9 +14,9 @@ initializeStore().catch(console.error);
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <HeroUIProvider>
+      <TooltipProvider>
         <App />
-      </HeroUIProvider>
+      </TooltipProvider>
     </QueryClientProvider>
   </React.StrictMode>,
 );
